@@ -1,24 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
-type Application = {
-  id: string;
-  company: string;
-  role: string;
-  status: string;
-  appliedDate: string;
-  contactName: string;
-  contactEmail: string;
-  link: string;
-  nextAction: string;
-  nextActionDate: string;
-  notes: string;
-  isDream100: boolean;
-};
+import type { Contact } from "@/lib/contact";
 
 type Column = {
-  key: keyof Application;
+  key: keyof Contact;
   label: string;
   type: "text" | "select" | "date";
   options?: string[];
@@ -42,10 +28,11 @@ const COLUMNS: Column[] = [
   { key: "notes", label: "Notes", type: "text" },
 ];
 
+// Legacy localStorage keys — read once on first load to migrate existing data into KV.
 const STORAGE_KEY = "nextconnection.applications";
 const DEADLINE_STORAGE_KEY = "nextconnection.dream100Deadline";
 
-function emptyRow(isDream100: boolean): Application {
+function emptyRow(isDream100: boolean): Contact {
   return {
     id: crypto.randomUUID(),
     company: "",
@@ -59,7 +46,16 @@ function emptyRow(isDream100: boolean): Application {
     nextActionDate: "",
     notes: "",
     isDream100,
+    createdAt: Date.now(),
   };
+}
+
+async function saveContact(contact: Contact) {
+  await fetch(`/api/contacts/${contact.id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(contact),
+  });
 }
 
 function daysUntil(dateStr: string): number {
@@ -79,7 +75,7 @@ function deadlineLabel(deadline: string): string {
 }
 
 export default function ApplicationsTable() {
-  const [rows, setRows] = useState<Application[]>([]);
+  const [rows, setRows] = useState<Contact[]>([]);
   const [deadline, setDeadline] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [view, setView] = useState<View>("master");
@@ -87,22 +83,95 @@ export default function ApplicationsTable() {
   const [editing, setEditing] = useState(false);
   const cellRefs = useRef<(HTMLElement | null)[][]>([]);
 
+  const rowsRef = useRef<Contact[]>([]);
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) setRows(JSON.parse(raw));
-    setDeadline(localStorage.getItem(DEADLINE_STORAGE_KEY) ?? "");
-    setLoaded(true);
+    rowsRef.current = rows;
+  }, [rows]);
+
+  const saveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const deadlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function scheduleContactSave(id: string) {
+    const pending = saveTimers.current.get(id);
+    if (pending) clearTimeout(pending);
+    saveTimers.current.set(
+      id,
+      setTimeout(() => {
+        saveTimers.current.delete(id);
+        const contact = rowsRef.current.find((r) => r.id === id);
+        if (contact) saveContact(contact);
+      }, 500)
+    );
+  }
+
+  function cancelContactSave(id: string) {
+    const pending = saveTimers.current.get(id);
+    if (pending) {
+      clearTimeout(pending);
+      saveTimers.current.delete(id);
+    }
+  }
+
+  function scheduleDeadlineSave(value: string) {
+    if (deadlineTimer.current) clearTimeout(deadlineTimer.current);
+    deadlineTimer.current = setTimeout(() => {
+      fetch("/api/deadline", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deadline: value }),
+      });
+    }, 500);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const res = await fetch("/api/contacts");
+      const data = (await res.json()) as { contacts: Contact[]; deadline: string };
+      if (cancelled) return;
+
+      if (data.contacts.length > 0 || data.deadline) {
+        setRows(data.contacts);
+        setDeadline(data.deadline);
+        setLoaded(true);
+        return;
+      }
+
+      // Nothing in KV yet for this browser — migrate any pre-existing localStorage data once.
+      const rawRows = localStorage.getItem(STORAGE_KEY);
+      const rawDeadline = localStorage.getItem(DEADLINE_STORAGE_KEY) ?? "";
+      const now = Date.now();
+      const localRows: Contact[] = rawRows
+        ? (JSON.parse(rawRows) as Omit<Contact, "createdAt">[]).map((row, index) => ({
+            ...row,
+            createdAt: now + index,
+          }))
+        : [];
+
+      if (cancelled) return;
+      setRows(localRows);
+      setDeadline(rawDeadline);
+      setLoaded(true);
+
+      if (localRows.length > 0) await Promise.all(localRows.map(saveContact));
+      if (rawDeadline) {
+        await fetch("/api/deadline", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deadline: rawDeadline }),
+        });
+      }
+      if (localRows.length > 0 || rawDeadline) {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(DEADLINE_STORAGE_KEY);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
-
-  useEffect(() => {
-    if (!loaded) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
-  }, [rows, loaded]);
-
-  useEffect(() => {
-    if (!loaded) return;
-    localStorage.setItem(DEADLINE_STORAGE_KEY, deadline);
-  }, [deadline, loaded]);
 
   useEffect(() => {
     if (!activeCell) return;
@@ -118,31 +187,34 @@ export default function ApplicationsTable() {
     setEditing(false);
   }
 
-  function setField(id: string, key: keyof Application, value: string) {
+  function setField(id: string, key: keyof Contact, value: string) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
+    scheduleContactSave(id);
   }
 
   function toggleDream100(id: string) {
-    setRows((prev) =>
-      prev.map((r) => {
-        if (r.id !== id) return r;
-        if (!r.isDream100 && dream100Count >= DREAM_100_LIMIT) return r;
-        return { ...r, isDream100: !r.isDream100 };
-      })
-    );
+    const row = rows.find((r) => r.id === id);
+    if (!row) return;
+    if (!row.isDream100 && dream100Count >= DREAM_100_LIMIT) return;
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, isDream100: !r.isDream100 } : r)));
+    scheduleContactSave(id);
   }
 
   function addRow(isDream100: boolean) {
     if (isDream100 && dream100Count >= DREAM_100_LIMIT) return;
-    setRows((prev) => [...prev, emptyRow(isDream100)]);
+    const row = emptyRow(isDream100);
+    setRows((prev) => [...prev, row]);
     setActiveCell({ row: visibleRows.length, col: 0 });
     setEditing(true);
+    scheduleContactSave(row.id);
   }
 
   function deleteRow(id: string) {
+    cancelContactSave(id);
     setRows((prev) => prev.filter((r) => r.id !== id));
     setActiveCell(null);
     setEditing(false);
+    fetch(`/api/contacts/${id}`, { method: "DELETE" });
   }
 
   function moveActiveCell(row: number, col: number) {
@@ -254,13 +326,20 @@ export default function ApplicationsTable() {
             <input
               type="date"
               value={deadline}
-              onChange={(e) => setDeadline(e.target.value)}
+              onChange={(e) => {
+                setDeadline(e.target.value);
+                scheduleDeadlineSave(e.target.value);
+              }}
               className="rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-black px-2 py-1 text-sm"
             />
           </div>
         )}
       </div>
 
+      {!loaded ? (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
+      ) : (
+        <>
       <table className="border-collapse w-full text-sm">
         <thead>
           <tr>
@@ -390,6 +469,8 @@ export default function ApplicationsTable() {
         >
           + Add to Dream 100
         </button>
+      )}
+        </>
       )}
     </div>
   );
