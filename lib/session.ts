@@ -1,22 +1,61 @@
+import "server-only";
 import { cookies } from "next/headers";
-import { randomUUID } from "node:crypto";
+import { SignJWT, jwtVerify, type JWTPayload } from "jose";
+import type { AuthUser } from "@/lib/auth/types";
 
-export const USER_COOKIE = "nc_uid";
+export const SESSION_COOKIE = "nc_session";
+const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
-// One year, since this cookie is the only thing identifying a browser's data until real auth exists.
-const USER_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+const secretKey = process.env.SESSION_SECRET;
+if (!secretKey) {
+  throw new Error("SESSION_SECRET is not set. Generate one with `openssl rand -base64 32`.");
+}
+const encodedKey = new TextEncoder().encode(secretKey);
 
-export async function getUserId(): Promise<string> {
+export type SessionPayload = JWTPayload & {
+  userId: string;
+  email: string;
+};
+
+async function encrypt(payload: SessionPayload): Promise<string> {
+  return new SignJWT(payload)
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(`${SESSION_MAX_AGE}s`)
+    .sign(encodedKey);
+}
+
+export async function decrypt(session: string | undefined): Promise<SessionPayload | null> {
+  if (!session) return null;
+  try {
+    const { payload } = await jwtVerify<SessionPayload>(session, encodedKey, {
+      algorithms: ["HS256"],
+    });
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+export async function createSession(user: AuthUser): Promise<void> {
+  const session = await encrypt({ userId: user.id, email: user.email });
   const cookieStore = await cookies();
-  const existing = cookieStore.get(USER_COOKIE)?.value;
-  if (existing) return existing;
 
-  const userId = randomUUID();
-  cookieStore.set(USER_COOKIE, userId, {
+  cookieStore.set(SESSION_COOKIE, session, {
     httpOnly: true,
+    secure: true,
     sameSite: "lax",
+    maxAge: SESSION_MAX_AGE,
     path: "/",
-    maxAge: USER_COOKIE_MAX_AGE,
   });
-  return userId;
+}
+
+export async function deleteSession(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete(SESSION_COOKIE);
+}
+
+export async function getSession(): Promise<SessionPayload | null> {
+  const cookieStore = await cookies();
+  return decrypt(cookieStore.get(SESSION_COOKIE)?.value);
 }

@@ -1,12 +1,13 @@
 import { kv } from "@vercel/kv";
-import { getUserId } from "@/lib/session";
-import { deadlineKey } from "@/lib/kv-keys";
+import { requireUserId } from "@/lib/dal";
+import { userKey } from "@/lib/kv-keys";
 
 export async function PUT(request: Request) {
-  const userId = await getUserId();
+  const userId = await requireUserId();
+  if (userId instanceof Response) return userId;
   const { deadline } = (await request.json()) as { deadline: string };
 
-  await kv.set(deadlineKey(userId), deadline);
+  await kv.hset(userKey(userId), { dream100Deadline: deadline });
 
   return Response.json({ ok: true });
 }

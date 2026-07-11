@@ -1,5 +1,5 @@
 import { kv } from "@vercel/kv";
-import { getUserId } from "@/lib/session";
+import { requireUserId } from "@/lib/dal";
 import { contactKey, contactIndexKey } from "@/lib/kv-keys";
 import type { Contact } from "@/lib/contact";
 
@@ -8,7 +8,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const userId = await getUserId();
+  const userId = await requireUserId();
+  if (userId instanceof Response) return userId;
   const contact = (await request.json()) as Contact;
 
   if (contact.id !== id) {
@@ -28,7 +29,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const userId = await getUserId();
+  const userId = await requireUserId();
+  if (userId instanceof Response) return userId;
 
   await Promise.all([
     kv.del(contactKey(userId, id)),
