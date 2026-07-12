@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Contact } from "@/lib/contact";
+import { computeStats } from "@/lib/stats";
+import StatsPanel from "./StatsPanel";
 
 type Column = {
   key: keyof Contact;
@@ -180,6 +182,7 @@ export default function ApplicationsTable() {
 
   const dream100Count = rows.filter((r) => r.isDream100).length;
   const visibleRows = view === "dream100" ? rows.filter((r) => r.isDream100) : rows;
+  const stats = computeStats(rows);
 
   function switchView(next: View) {
     setView(next);
@@ -340,6 +343,7 @@ export default function ApplicationsTable() {
         <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
       ) : (
         <>
+      <StatsPanel stats={stats} />
       <table className="border-collapse w-full text-sm">
         <thead>
           <tr>
