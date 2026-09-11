@@ -302,19 +302,23 @@ export default function ApplicationsTable() {
   return (
     <div className="flex flex-col gap-4 w-full">
       <div className="flex flex-wrap items-center gap-3">
-        <div className="inline-flex rounded-full border border-zinc-300 dark:border-zinc-700 p-0.5 text-sm">
+        <div className="inline-flex border border-[var(--rule)] text-[14px] overflow-hidden">
           <button
             onClick={() => switchView("master")}
-            className={`rounded-full px-3 py-1 ${
-              view === "master" ? "bg-black text-white dark:bg-white dark:text-black" : ""
+            className={`px-3 py-1 cursor-pointer transition-colors duration-150 ${
+              view === "master"
+                ? "bg-[var(--ink)] text-[var(--paper)]"
+                : "bg-transparent text-[var(--ink-3)] hover:text-[var(--ink)]"
             }`}
           >
-            Master List
+            Master list
           </button>
           <button
             onClick={() => switchView("dream100")}
-            className={`rounded-full px-3 py-1 ${
-              view === "dream100" ? "bg-black text-white dark:bg-white dark:text-black" : ""
+            className={`px-3 py-1 cursor-pointer transition-colors duration-150 ${
+              view === "dream100"
+                ? "bg-[var(--ink)] text-[var(--paper)]"
+                : "bg-transparent text-[var(--ink-3)] hover:text-[var(--ink)]"
             }`}
           >
             Dream 100 ({dream100Count}/{DREAM_100_LIMIT})
@@ -322,8 +326,8 @@ export default function ApplicationsTable() {
         </div>
 
         {view === "dream100" && (
-          <div className="flex items-center gap-2 text-sm">
-            <span className={expired ? "font-medium text-red-500" : "text-zinc-600 dark:text-zinc-400"}>
+          <div className="flex items-center gap-2 text-[14px]">
+            <span className={expired ? "font-semibold text-[var(--ink)]" : "text-[var(--ink-3)]"}>
               {deadlineLabel(deadline)}
             </span>
             <input
@@ -333,30 +337,30 @@ export default function ApplicationsTable() {
                 setDeadline(e.target.value);
                 scheduleDeadlineSave(e.target.value);
               }}
-              className="rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-black px-2 py-1 text-sm"
+              className="border border-[var(--rule)] bg-transparent px-2 py-1 text-[14px] text-[var(--ink)] outline-none transition-colors duration-150 focus:border-[var(--ink-3)]"
             />
           </div>
         )}
       </div>
 
       {!loaded ? (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
+        <p className="smallcaps py-4">Loading…</p>
       ) : (
         <>
       <StatsPanel stats={stats} />
-      <table className="border-collapse w-full text-sm">
+      <table className="ledger border-collapse w-full text-[14px]">
         <thead>
           <tr>
             {COLUMNS.map((col) => (
               <th
                 key={col.key}
-                className="border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 px-2 py-1 text-left font-medium whitespace-nowrap"
+                className="smallcaps border-b border-[var(--rule)] border-r border-r-[var(--rule)] last:border-r-0 px-2 py-1.5 text-left whitespace-nowrap"
               >
                 {col.label}
               </th>
             ))}
-            <th className="border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 w-8" />
-            <th className="border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 w-8" />
+            <th className="border-b border-[var(--rule)] border-r border-r-[var(--rule)] w-8" />
+            <th className="border-b border-[var(--rule)] w-8" />
           </tr>
         </thead>
         <tbody>
@@ -369,14 +373,14 @@ export default function ApplicationsTable() {
 
                 if (isEditing && col.type === "select") {
                   return (
-                    <td key={col.key} className="border border-zinc-200 dark:border-zinc-800 p-0">
+                    <td key={col.key} className="border-r border-[var(--rule)] p-0">
                       <select
                         ref={(el) => setCellRef(rowIndex, colIndex, el)}
                         value={value}
                         onChange={(e) => setField(row.id, col.key, e.target.value)}
                         onBlur={() => setEditing(false)}
                         onKeyDown={(e) => handleEditingKeyDown(e, rowIndex, colIndex)}
-                        className="w-full h-full px-2 py-1 outline-2 outline-blue-500 bg-white dark:bg-black"
+                        className="w-full h-full px-2 py-1.5 outline-2 outline-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]"
                       >
                         {col.options!.map((opt) => (
                           <option key={opt} value={opt}>
@@ -390,7 +394,7 @@ export default function ApplicationsTable() {
 
                 if (isEditing) {
                   return (
-                    <td key={col.key} className="border border-zinc-200 dark:border-zinc-800 p-0">
+                    <td key={col.key} className="border-r border-[var(--rule)] p-0">
                       <input
                         ref={(el) => setCellRef(rowIndex, colIndex, el)}
                         type={col.type === "date" ? "date" : "text"}
@@ -398,14 +402,14 @@ export default function ApplicationsTable() {
                         onChange={(e) => setField(row.id, col.key, e.target.value)}
                         onBlur={() => setEditing(false)}
                         onKeyDown={(e) => handleEditingKeyDown(e, rowIndex, colIndex)}
-                        className="w-full h-full px-2 py-1 outline-2 outline-blue-500 bg-white dark:bg-black"
+                        className="w-full h-full px-2 py-1.5 outline-2 outline-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]"
                       />
                     </td>
                   );
                 }
 
                 return (
-                  <td key={col.key} className="border border-zinc-200 dark:border-zinc-800 p-0">
+                  <td key={col.key} className="border-r border-[var(--rule)] p-0">
                     <div
                       ref={(el) => setCellRef(rowIndex, colIndex, el)}
                       tabIndex={0}
@@ -415,9 +419,9 @@ export default function ApplicationsTable() {
                         setEditing(true);
                       }}
                       onKeyDown={(e) => handleSelectedKeyDown(e, rowIndex, colIndex)}
-                      className={`px-2 py-1 min-h-[28px] truncate ${
+                      className={`px-2 py-1.5 min-h-[30px] truncate ${
                         isActive
-                          ? "outline outline-2 outline-blue-500 -outline-offset-2"
+                          ? "outline outline-2 outline-[var(--ink)] -outline-offset-2 bg-[var(--paper-3)]"
                           : "outline-none"
                       }`}
                     >
@@ -426,7 +430,7 @@ export default function ApplicationsTable() {
                   </td>
                 );
               })}
-              <td className="border border-zinc-200 dark:border-zinc-800 text-center">
+              <td className="border-r border-[var(--rule)] text-center">
                 <button
                   onClick={() => toggleDream100(row.id)}
                   disabled={!row.isDream100 && dream100Count >= DREAM_100_LIMIT}
@@ -437,17 +441,17 @@ export default function ApplicationsTable() {
                       ? "Dream 100 is full"
                       : "Add to Dream 100"
                   }
-                  className={`px-2 disabled:cursor-not-allowed disabled:opacity-30 ${
-                    row.isDream100 ? "text-amber-500" : "text-zinc-300 dark:text-zinc-600 hover:text-amber-500"
+                  className={`px-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 transition-colors duration-150 ${
+                    row.isDream100 ? "text-[var(--ink)]" : "text-[var(--ink-4)] hover:text-[var(--ink)]"
                   }`}
                 >
                   ★
                 </button>
               </td>
-              <td className="border border-zinc-200 dark:border-zinc-800 text-center">
+              <td className="border-r border-[var(--rule)] text-center">
                 <button
                   onClick={() => deleteRow(row.id)}
-                  className="text-zinc-400 hover:text-red-500 px-2"
+                  className="text-[var(--ink-4)] hover:text-[var(--ink)] px-2 cursor-pointer transition-colors duration-150"
                   aria-label="Delete row"
                 >
                   ×
@@ -461,7 +465,7 @@ export default function ApplicationsTable() {
       {view === "master" ? (
         <button
           onClick={() => addRow(false)}
-          className="self-start rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-900"
+          className="self-start border border-[var(--rule)] px-3 py-1.5 text-[14px] cursor-pointer transition-colors duration-150 hover:bg-[var(--paper-3)]"
         >
           + Add application
         </button>
@@ -469,7 +473,7 @@ export default function ApplicationsTable() {
         <button
           onClick={() => addRow(true)}
           disabled={dream100Count >= DREAM_100_LIMIT}
-          className="self-start rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-30"
+          className="self-start border border-[var(--rule)] px-3 py-1.5 text-[14px] cursor-pointer transition-colors duration-150 hover:bg-[var(--paper-3)] disabled:cursor-not-allowed disabled:opacity-30"
         >
           + Add to Dream 100
         </button>

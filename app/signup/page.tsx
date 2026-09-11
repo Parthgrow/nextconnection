@@ -8,15 +8,15 @@ export default function SignupPage() {
   const [state, action, pending] = useActionState(signup, undefined);
 
   return (
-    <div className="flex flex-1 items-center justify-center min-h-screen bg-zinc-50 dark:bg-black px-6">
+    <div className="flex flex-1 items-center justify-center min-h-screen bg-[var(--paper)] px-6">
       <form
         action={action}
-        className="w-full max-w-sm flex flex-col gap-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-8 shadow-lg shadow-black/5 dark:shadow-black/40"
+        className="w-full max-w-sm flex flex-col gap-4 border border-[var(--rule)] p-8"
       >
-        <h1 className="text-xl font-semibold text-black dark:text-zinc-50">Create an account</h1>
+        <h1 className="text-[22px] font-semibold tracking-[-0.01em] text-[var(--ink)] border-b border-[var(--rule-ink)] pb-2 mb-1">Create an account</h1>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="email" className="text-sm text-zinc-600 dark:text-zinc-400">
+          <label htmlFor="email" className="smallcaps">
             Email
           </label>
           <input
@@ -25,12 +25,12 @@ export default function SignupPage() {
             type="email"
             required
             autoFocus
-            className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-black dark:focus:border-white"
+            className="border border-[var(--rule)] bg-transparent px-3 py-2 text-[15px] text-[var(--ink)] outline-none transition-colors duration-150 focus:border-[var(--ink-3)]"
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="password" className="text-sm text-zinc-600 dark:text-zinc-400">
+          <label htmlFor="password" className="smallcaps">
             Password
           </label>
           <input
@@ -39,23 +39,23 @@ export default function SignupPage() {
             type="password"
             required
             minLength={8}
-            className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-transparent px-3 py-2 text-sm outline-none focus:border-black dark:focus:border-white"
+            className="border border-[var(--rule)] bg-transparent px-3 py-2 text-[15px] text-[var(--ink)] outline-none transition-colors duration-150 focus:border-[var(--ink-3)]"
           />
         </div>
 
-        {state?.error && <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>}
+        {state?.error && <p className="text-[14px] text-[var(--ink-2)] border border-[var(--rule)] bg-[var(--paper-2)] px-3 py-2">{state.error}</p>}
 
         <button
           type="submit"
           disabled={pending}
-          className="mt-2 rounded-full bg-black dark:bg-white text-white dark:text-black px-4 py-2 text-sm font-medium disabled:opacity-50"
+          className="mt-2 border-none bg-[var(--ink)] text-[var(--paper)] px-4 py-2.5 text-[15px] font-semibold cursor-pointer transition-opacity duration-150 hover:opacity-85 disabled:opacity-40"
         >
-          {pending ? "Creating account..." : "Sign up"}
+          {pending ? "Creating account…" : "Sign up"}
         </button>
 
-        <p className="text-sm text-zinc-500 text-center">
+        <p className="text-[14px] text-[var(--ink-3)] text-center">
           Already have an account?{" "}
-          <Link href="/login" className="underline">
+          <Link href="/login" className="text-[var(--ink)] underline underline-offset-4 decoration-[var(--rule)] hover:decoration-[var(--ink)] transition-colors duration-150">
             Sign in
           </Link>
         </p>
