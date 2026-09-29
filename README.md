@@ -20,6 +20,10 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Coding agents (MCP)
+
+This repo ships a `.mcp.json` that registers [`next-devtools-mcp`](https://github.com/vercel/next-devtools-mcp). With `npm run dev` running, Claude Code (or any MCP-compatible agent) opened in this folder can read live build/runtime errors, dev logs, routes, page metadata and Server Actions from the Next.js dev server via its built-in `/_next/mcp` endpoint. Approve the `next-devtools` server when prompted and check it with `/mcp`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
