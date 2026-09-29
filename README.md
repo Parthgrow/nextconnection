@@ -24,6 +24,19 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 This repo ships a `.mcp.json` that registers [`next-devtools-mcp`](https://github.com/vercel/next-devtools-mcp). With `npm run dev` running, Claude Code (or any MCP-compatible agent) opened in this folder can read live build/runtime errors, dev logs, routes, page metadata and Server Actions from the Next.js dev server via its built-in `/_next/mcp` endpoint. Approve the `next-devtools` server when prompted and check it with `/mcp`.
 
+### Contacts MCP server
+
+`scripts/mcp-server.ts` is a local MCP server (also registered in `.mcp.json`) that lets Claude Code read and manage your contacts directly in Vercel KV — changes show up in the web app immediately.
+
+1. Add to `.env` (alongside `KV_REST_API_URL` and `KV_REST_API_TOKEN`):
+   ```
+   NEXTCONNECTION_USER_ID=<your user id>
+   ```
+   The id is printed by `node --env-file=.env scripts/create-admin.mjs`, or stored in KV at `nextconnection:user:by-email:<your email>`.
+2. Run `npm install`, then restart `claude` in this folder and approve the `nextconnection` server (`/mcp` shows its status).
+
+Tools: `list_contacts`, `get_contact`, `add_contact`, `update_contact`, `delete_contact` (requires `confirm: true`), `get_upcoming_actions`, `get_stats`, `set_dream100_deadline`. Try: *"Add Stripe, SWE, applied today, follow up Friday"* or *"What follow-ups are overdue?"*
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
