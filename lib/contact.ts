@@ -1,3 +1,5 @@
+export const STATUS_OPTIONS = ["Wishlist", "Applied", "Interviewing", "Offer", "Rejected"];
+
 export type Contact = {
   id: string;
   company: string;

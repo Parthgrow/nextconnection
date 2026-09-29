@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Contact } from "@/lib/contact";
+import { STATUS_OPTIONS, type Contact } from "@/lib/contact";
 import { computeStats } from "@/lib/stats";
 import StatsPanel from "./StatsPanel";
 
@@ -14,7 +14,6 @@ type Column = {
 
 type View = "master" | "dream100";
 
-const STATUS_OPTIONS = ["Wishlist", "Applied", "Interviewing", "Offer", "Rejected"];
 const DREAM_100_LIMIT = 100;
 
 const COLUMNS: Column[] = [
