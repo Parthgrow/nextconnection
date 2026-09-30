@@ -68,19 +68,38 @@ export async function revokeMcpToken(userId: string, tokenId: string): Promise<v
   ]);
 }
 
+async function userIdForToken(token: string | undefined): Promise<string | null> {
+  if (!token?.startsWith(TOKEN_PREFIX)) return null;
+  const record = await kv.get<TokenRecord>(mcpTokenKey(hashToken(token)));
+  return record?.userId ?? null;
+}
+
 // For Route Handlers: resolves `Authorization: Bearer <token>` to a userId,
 // or returns a 401 Response. Same calling convention as requireUserId().
 export async function requireMcpUserId(req: Request): Promise<string | Response> {
   const match = req.headers.get("authorization")?.match(/^Bearer\s+(\S+)$/i);
-  const record = match?.[1].startsWith(TOKEN_PREFIX)
-    ? await kv.get<TokenRecord>(mcpTokenKey(hashToken(match[1])))
-    : null;
+  const userId = await userIdForToken(match?.[1]);
 
-  if (!record) {
+  if (!userId) {
     return Response.json(
       { error: "Missing or invalid MCP token. Generate one at /settings." },
       { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="nextconnection"' } }
     );
   }
-  return record.userId;
+  return userId;
+}
+
+// Same tokens, carried in the URL path (/api/mcp/<token>) for clients such as
+// claude.ai custom connectors that can't send an Authorization header. No
+// WWW-Authenticate challenge here: it would send those clients looking for an
+// OAuth server this app doesn't run.
+export async function requireMcpUserIdFromPath(token: string): Promise<string | Response> {
+  const userId = await userIdForToken(token);
+  if (!userId) {
+    return Response.json(
+      { error: "Invalid or revoked connector URL. Generate a new one at /settings." },
+      { status: 401 }
+    );
+  }
+  return userId;
 }
