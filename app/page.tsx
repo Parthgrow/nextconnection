@@ -1,3 +1,4 @@
+import Link from "next/link";
 import ApplicationsTable from "./ApplicationsTable";
 import CommandBar from "./CommandBar";
 import { logout } from "@/app/actions/auth";
@@ -10,14 +11,22 @@ export default function Home() {
           <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
             Applications
           </h1>
-          <form action={logout}>
-            <button
-              type="submit"
+          <div className="flex items-center gap-4">
+            <Link
+              href="/settings"
               className="text-sm text-zinc-500 hover:text-black dark:hover:text-white"
             >
-              Sign out
-            </button>
-          </form>
+              Connect Claude
+            </Link>
+            <form action={logout}>
+              <button
+                type="submit"
+                className="text-sm text-zinc-500 hover:text-black dark:hover:text-white"
+              >
+                Sign out
+              </button>
+            </form>
+          </div>
         </div>
         <ApplicationsTable />
       </main>

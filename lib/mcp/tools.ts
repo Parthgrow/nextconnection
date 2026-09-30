@@ -58,6 +58,18 @@ export function registerContactTools(server: McpServer, userId: string) {
   }
 
   server.registerTool(
+    "whoami",
+    {
+      description: "Show which NextConnection account these tools are acting as.",
+      annotations: { readOnlyHint: true },
+    },
+    async () => {
+      const email = await kv.hget<string>(userKey(userId), "email");
+      return json({ userId, email: email ?? null });
+    }
+  );
+
+  server.registerTool(
     "list_contacts",
     {
       description:

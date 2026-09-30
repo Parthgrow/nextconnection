@@ -17,3 +17,12 @@ export function contactKey(userId: string, contactId: string): string {
 export function contactIndexKey(userId: string): string {
   return `nextconnection:user:${userId}:contact_ids`;
 }
+
+// Remote MCP API tokens: only the SHA-256 of a token is ever stored.
+export function mcpTokenKey(tokenHash: string): string {
+  return `nextconnection:mcp-token:${tokenHash}`;
+}
+
+export function mcpTokenIndexKey(userId: string): string {
+  return `nextconnection:user:${userId}:mcp_tokens`;
+}

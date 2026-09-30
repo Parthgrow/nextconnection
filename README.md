@@ -37,6 +37,19 @@ This repo ships a `.mcp.json` that registers [`next-devtools-mcp`](https://githu
 
 Tools: `list_contacts`, `get_contact`, `add_contact`, `update_contact`, `delete_contact` (requires `confirm: true`), `get_upcoming_actions`, `get_stats`, `set_dream100_deadline`. Try: *"Add Stripe, SWE, applied today, follow up Friday"* or *"What follow-ups are overdue?"*
 
+### Remote MCP server
+
+The deployed app also serves the same tools over HTTP at `/api/mcp`, so Claude Code on any machine can use them without KV credentials:
+
+1. Sign in and open **Connect Claude** (`/settings`), then click **Generate MCP token**. The token is shown once; only its SHA-256 hash is stored, and you can revoke it from the same page.
+2. Run the command shown there:
+   ```bash
+   claude mcp add --transport http nextconnection https://<your-app>/api/mcp \
+     --header "Authorization: Bearer <token>"
+   ```
+
+Each token acts as the user who created it (the `whoami` tool confirms which account).
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
