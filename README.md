@@ -50,6 +50,8 @@ The deployed app also serves the same tools over HTTP at `/api/mcp`, so Claude C
 
 Each token acts as the user who created it (the `whoami` tool confirms which account).
 
+**claude.ai (web, desktop and mobile apps):** custom connectors only take a URL, so the same page also shows a connector URL with the token in the path (`https://<your-app>/api/mcp/<token>`). Paste it into *Settings → Connectors → Add custom connector*. That URL is the credential — anyone who has it can use your contacts until you revoke the token — so use a dedicated token for it.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

@@ -25,7 +25,8 @@ export default async function SettingsPage() {
         </div>
 
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Generate a token to let Claude Code read and manage the contacts for{" "}
+          Generate a token to let Claude (Claude Code or the claude.ai apps) read and manage the
+          contacts for{" "}
           <span className="font-medium text-black dark:text-zinc-50">{email}</span> through the
           MCP server at <code className="rounded bg-zinc-100 dark:bg-zinc-800 px-1">{mcpUrl}</code>.
           Anyone with a token has full access to your contacts, so treat it like a password.
