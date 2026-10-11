@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# lists migration: real plans contain personal data; backups contain everything
+/scripts/migrate-lists.plan.json
+/backups/

@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { STATUS_OPTIONS, type Contact } from "@/lib/contact";
+import {
+  DEFAULT_LIST_ID,
+  LIST_DEFINITIONS,
+  LIST_IDS,
+  STATUS_OPTIONS,
+  type Contact,
+  type List,
+  type ListId,
+} from "@/lib/contact";
 import { computeStats } from "@/lib/stats";
 import StatsPanel from "./StatsPanel";
 
@@ -12,9 +20,7 @@ type Column = {
   options?: string[];
 };
 
-type View = "master" | "dream100";
-
-const DREAM_100_LIMIT = 100;
+type View = ListId | "all";
 
 const COLUMNS: Column[] = [
   { key: "company", label: "Company", type: "text" },
@@ -33,9 +39,10 @@ const COLUMNS: Column[] = [
 const STORAGE_KEY = "nextconnection.applications";
 const DEADLINE_STORAGE_KEY = "nextconnection.dream100Deadline";
 
-function emptyRow(isDream100: boolean): Contact {
+function emptyRow(listId: ListId): Contact {
   return {
     id: crypto.randomUUID(),
+    listId,
     company: "",
     role: "",
     status: STATUS_OPTIONS[0],
@@ -46,17 +53,30 @@ function emptyRow(isDream100: boolean): Contact {
     nextAction: "",
     nextActionDate: "",
     notes: "",
-    isDream100,
     createdAt: Date.now(),
   };
 }
 
-async function saveContact(contact: Contact) {
+// New rows are created with PUT; edits PATCH only the fields that changed, so
+// an edit here can't overwrite a field changed elsewhere (e.g. through MCP).
+async function createContact(contact: Contact) {
   await fetch(`/api/contacts/${contact.id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(contact),
   });
+}
+
+async function patchContact(id: string, fields: Partial<Contact>) {
+  await fetch(`/api/contacts/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+}
+
+function capacityOf(lists: List[], listId: ListId): number | undefined {
+  return lists.find((l) => l.id === listId)?.targetCount ?? LIST_DEFINITIONS[listId].targetCount;
 }
 
 function daysUntil(dateStr: string): number {
@@ -77,9 +97,10 @@ function deadlineLabel(deadline: string): string {
 
 export default function ApplicationsTable() {
   const [rows, setRows] = useState<Contact[]>([]);
+  const [lists, setLists] = useState<List[]>([]);
   const [deadline, setDeadline] = useState("");
   const [loaded, setLoaded] = useState(false);
-  const [view, setView] = useState<View>("master");
+  const [view, setView] = useState<View>(DEFAULT_LIST_ID);
   const [activeCell, setActiveCell] = useState<{ row: number; col: number } | null>(null);
   const [editing, setEditing] = useState(false);
   const cellRefs = useRef<(HTMLElement | null)[][]>([]);
@@ -90,7 +111,19 @@ export default function ApplicationsTable() {
   }, [rows]);
 
   const saveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  // Per row: the fields edited since the last save, or "new" for a row that
+  // hasn't been created on the server yet.
+  const dirty = useRef(new Map<string, Set<keyof Contact> | "new">());
   const deadlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function markDirty(id: string, key: keyof Contact | "new") {
+    const current = dirty.current.get(id);
+    if (key === "new" || current === "new") {
+      dirty.current.set(id, "new");
+    } else {
+      dirty.current.set(id, new Set([...(current ?? []), key]));
+    }
+  }
 
   function scheduleContactSave(id: string) {
     const pending = saveTimers.current.get(id);
@@ -100,7 +133,14 @@ export default function ApplicationsTable() {
       setTimeout(() => {
         saveTimers.current.delete(id);
         const contact = rowsRef.current.find((r) => r.id === id);
-        if (contact) saveContact(contact);
+        const changes = dirty.current.get(id);
+        dirty.current.delete(id);
+        if (!contact || !changes) return;
+        if (changes === "new") {
+          createContact(contact);
+        } else {
+          patchContact(id, Object.fromEntries([...changes].map((k) => [k, contact[k]])));
+        }
       }, 500)
     );
   }
@@ -111,17 +151,20 @@ export default function ApplicationsTable() {
       clearTimeout(pending);
       saveTimers.current.delete(id);
     }
+    dirty.current.delete(id);
+  }
+
+  function saveDreamDeadline(value: string) {
+    return fetch("/api/lists/dream100", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deadline: value }),
+    });
   }
 
   function scheduleDeadlineSave(value: string) {
     if (deadlineTimer.current) clearTimeout(deadlineTimer.current);
-    deadlineTimer.current = setTimeout(() => {
-      fetch("/api/deadline", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deadline: value }),
-      });
-    }, 500);
+    deadlineTimer.current = setTimeout(() => saveDreamDeadline(value), 500);
   }
 
   useEffect(() => {
@@ -129,12 +172,14 @@ export default function ApplicationsTable() {
 
     (async () => {
       const res = await fetch("/api/contacts");
-      const data = (await res.json()) as { contacts: Contact[]; deadline: string };
+      const data = (await res.json()) as { contacts: Contact[]; lists: List[] };
       if (cancelled) return;
+      const dreamDeadline = data.lists.find((l) => l.id === "dream100")?.deadline ?? "";
+      setLists(data.lists);
 
-      if (data.contacts.length > 0 || data.deadline) {
+      if (data.contacts.length > 0 || dreamDeadline) {
         setRows(data.contacts);
-        setDeadline(data.deadline);
+        setDeadline(dreamDeadline);
         setLoaded(true);
         return;
       }
@@ -144,10 +189,13 @@ export default function ApplicationsTable() {
       const rawDeadline = localStorage.getItem(DEADLINE_STORAGE_KEY) ?? "";
       const now = Date.now();
       const localRows: Contact[] = rawRows
-        ? (JSON.parse(rawRows) as Omit<Contact, "createdAt">[]).map((row, index) => ({
-            ...row,
-            createdAt: now + index,
-          }))
+        ? (JSON.parse(rawRows) as (Omit<Contact, "createdAt" | "listId"> & { isDream100?: boolean })[]).map(
+            ({ isDream100, ...row }, index) => ({
+              ...row,
+              listId: isDream100 ? "dream100" : DEFAULT_LIST_ID,
+              createdAt: now + index,
+            })
+          )
         : [];
 
       if (cancelled) return;
@@ -155,14 +203,8 @@ export default function ApplicationsTable() {
       setDeadline(rawDeadline);
       setLoaded(true);
 
-      if (localRows.length > 0) await Promise.all(localRows.map(saveContact));
-      if (rawDeadline) {
-        await fetch("/api/deadline", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ deadline: rawDeadline }),
-        });
-      }
+      if (localRows.length > 0) await Promise.all(localRows.map(createContact));
+      if (rawDeadline) await saveDreamDeadline(rawDeadline);
       if (localRows.length > 0 || rawDeadline) {
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(DEADLINE_STORAGE_KEY);
@@ -179,9 +221,14 @@ export default function ApplicationsTable() {
     cellRefs.current[activeCell.row]?.[activeCell.col]?.focus();
   }, [activeCell, editing]);
 
-  const dream100Count = rows.filter((r) => r.isDream100).length;
-  const visibleRows = view === "dream100" ? rows.filter((r) => r.isDream100) : rows;
+  const countIn = (listId: ListId) => rows.filter((r) => r.listId === listId).length;
+  const isFull = (listId: ListId) => {
+    const capacity = capacityOf(lists, listId);
+    return capacity !== undefined && countIn(listId) >= capacity;
+  };
+  const visibleRows = view === "all" ? rows : rows.filter((r) => r.listId === view);
   const stats = computeStats(rows);
+  const addTarget: ListId = view === "all" ? DEFAULT_LIST_ID : view;
 
   function switchView(next: View) {
     setView(next);
@@ -191,23 +238,25 @@ export default function ApplicationsTable() {
 
   function setField(id: string, key: keyof Contact, value: string) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
+    markDirty(id, key);
     scheduleContactSave(id);
   }
 
-  function toggleDream100(id: string) {
+  function moveToList(id: string, listId: ListId) {
     const row = rows.find((r) => r.id === id);
-    if (!row) return;
-    if (!row.isDream100 && dream100Count >= DREAM_100_LIMIT) return;
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, isDream100: !r.isDream100 } : r)));
-    scheduleContactSave(id);
+    if (!row || row.listId === listId || isFull(listId)) return;
+    setActiveCell(null);
+    setEditing(false);
+    setField(id, "listId", listId);
   }
 
-  function addRow(isDream100: boolean) {
-    if (isDream100 && dream100Count >= DREAM_100_LIMIT) return;
-    const row = emptyRow(isDream100);
+  function addRow(listId: ListId) {
+    if (isFull(listId)) return;
+    const row = emptyRow(listId);
     setRows((prev) => [...prev, row]);
     setActiveCell({ row: visibleRows.length, col: 0 });
     setEditing(true);
+    markDirty(row.id, "new");
     scheduleContactSave(row.id);
   }
 
@@ -301,23 +350,24 @@ export default function ApplicationsTable() {
   return (
     <div className="flex flex-col gap-4 w-full">
       <div className="flex flex-wrap items-center gap-3">
-        <div className="inline-flex rounded-full border border-zinc-300 dark:border-zinc-700 p-0.5 text-sm">
-          <button
-            onClick={() => switchView("master")}
-            className={`rounded-full px-3 py-1 ${
-              view === "master" ? "bg-black text-white dark:bg-white dark:text-black" : ""
-            }`}
-          >
-            Master List
-          </button>
-          <button
-            onClick={() => switchView("dream100")}
-            className={`rounded-full px-3 py-1 ${
-              view === "dream100" ? "bg-black text-white dark:bg-white dark:text-black" : ""
-            }`}
-          >
-            Dream 100 ({dream100Count}/{DREAM_100_LIMIT})
-          </button>
+        <div className="inline-flex flex-wrap rounded-full border border-zinc-300 dark:border-zinc-700 p-0.5 text-sm">
+          {[...LIST_IDS, "all" as const].map((id) => {
+            const capacity = id === "all" ? undefined : capacityOf(lists, id);
+            const count = id === "all" ? rows.length : countIn(id);
+            const label = id === "all" ? "All" : LIST_DEFINITIONS[id].name;
+            return (
+              <button
+                key={id}
+                onClick={() => switchView(id)}
+                className={`rounded-full px-3 py-1 ${
+                  view === id ? "bg-black text-white dark:bg-white dark:text-black" : ""
+                }`}
+              >
+                {label} ({count}
+                {capacity ? `/${capacity}` : ""})
+              </button>
+            );
+          })}
         </div>
 
         {view === "dream100" && (
@@ -354,7 +404,9 @@ export default function ApplicationsTable() {
                 {col.label}
               </th>
             ))}
-            <th className="border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 w-8" />
+            <th className="border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 px-2 py-1 text-left font-medium whitespace-nowrap">
+              List
+            </th>
             <th className="border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 w-8" />
           </tr>
         </thead>
@@ -425,23 +477,20 @@ export default function ApplicationsTable() {
                   </td>
                 );
               })}
-              <td className="border border-zinc-200 dark:border-zinc-800 text-center">
-                <button
-                  onClick={() => toggleDream100(row.id)}
-                  disabled={!row.isDream100 && dream100Count >= DREAM_100_LIMIT}
-                  title={
-                    row.isDream100
-                      ? "Remove from Dream 100"
-                      : dream100Count >= DREAM_100_LIMIT
-                      ? "Dream 100 is full"
-                      : "Add to Dream 100"
-                  }
-                  className={`px-2 disabled:cursor-not-allowed disabled:opacity-30 ${
-                    row.isDream100 ? "text-amber-500" : "text-zinc-300 dark:text-zinc-600 hover:text-amber-500"
-                  }`}
+              <td className="border border-zinc-200 dark:border-zinc-800 p-0">
+                <select
+                  value={row.listId}
+                  onChange={(e) => moveToList(row.id, e.target.value as ListId)}
+                  aria-label="Move to list"
+                  className="w-full bg-transparent px-1 py-1 text-sm"
                 >
-                  ★
-                </button>
+                  {LIST_IDS.map((id) => (
+                    <option key={id} value={id} disabled={id !== row.listId && isFull(id)}>
+                      {LIST_DEFINITIONS[id].name}
+                      {id !== row.listId && isFull(id) ? " (full)" : ""}
+                    </option>
+                  ))}
+                </select>
               </td>
               <td className="border border-zinc-200 dark:border-zinc-800 text-center">
                 <button
@@ -457,22 +506,13 @@ export default function ApplicationsTable() {
         </tbody>
       </table>
 
-      {view === "master" ? (
-        <button
-          onClick={() => addRow(false)}
-          className="self-start rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-900"
-        >
-          + Add application
-        </button>
-      ) : (
-        <button
-          onClick={() => addRow(true)}
-          disabled={dream100Count >= DREAM_100_LIMIT}
-          className="self-start rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-30"
-        >
-          + Add to Dream 100
-        </button>
-      )}
+      <button
+        onClick={() => addRow(addTarget)}
+        disabled={isFull(addTarget)}
+        className="self-start rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-30"
+      >
+        + Add to {LIST_DEFINITIONS[addTarget].name}
+      </button>
         </>
       )}
     </div>
