@@ -1,0 +1,14 @@
+{
+  "merges": [
+    {
+      "keep": "<id of the entry to keep>",
+      "merge": ["<id of a duplicate to fold into it>"],
+      "set": { "company": "Company name", "contactName": "Person at the company" }
+    }
+  ],
+  "deletes": ["<id of an entry to delete>"],
+  "lists": {
+    "leads": ["<id>", "<id>"],
+    "dream100": ["<id>"]
+  }
+}
