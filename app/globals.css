@@ -24,3 +24,53 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Home + Career animation for the Send button (app/SendButton.tsx). */
+@keyframes hc-backdrop {
+  0%, 100% { opacity: 0; }
+  12%, 82% { opacity: 1; }
+}
+@keyframes hc-left {
+  0% { transform: translateX(-40vw) rotate(-20deg); opacity: 0; }
+  35% { transform: translateX(0) rotate(0); opacity: 1; }
+  45% { transform: translateX(6px) scale(1.15); }
+  55%, 85% { transform: translateX(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-20px); opacity: 0; }
+}
+@keyframes hc-right {
+  0% { transform: translateX(40vw) rotate(20deg); opacity: 0; }
+  35% { transform: translateX(0) rotate(0); opacity: 1; }
+  45% { transform: translateX(-6px) scale(1.15); }
+  55%, 85% { transform: translateX(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-20px); opacity: 0; }
+}
+@keyframes hc-pop {
+  0%, 35% { transform: scale(0); opacity: 0; }
+  48% { transform: scale(1.5); opacity: 1; }
+  58%, 85% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.6); opacity: 0; }
+}
+@keyframes hc-glow {
+  0%, 40% { transform: scale(0.2); opacity: 0; }
+  55% { transform: scale(1.6); opacity: 1; }
+  85% { transform: scale(1.2); opacity: 0.7; }
+  100% { transform: scale(2); opacity: 0; }
+}
+@keyframes hc-caption {
+  0%, 50% { transform: translateY(12px); opacity: 0; }
+  65%, 85% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-8px); opacity: 0; }
+}
+.hc-backdrop { animation: hc-backdrop 2.6s ease-in-out both; }
+.hc-left { display: inline-block; animation: hc-left 2.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.hc-right { display: inline-block; animation: hc-right 2.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.hc-plus { display: inline-block; animation: hc-pop 2.6s ease-out both; }
+.hc-glow { animation: hc-glow 2.6s ease-out both; }
+.hc-caption { animation: hc-caption 2.6s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hc-left, .hc-right, .hc-plus, .hc-glow, .hc-caption, .hc-backdrop {
+    animation-name: hc-backdrop;
+    transform: none;
+  }
+}
