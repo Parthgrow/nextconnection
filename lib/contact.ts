@@ -2,7 +2,7 @@ export const STATUS_OPTIONS = ["Wishlist", "Applied", "Interviewing", "Offer", "
 
 // Every contact lives in exactly one list (one-to-many). The set is fixed for
 // now, so ids are stable slugs rather than generated UUIDs.
-export const LIST_IDS = ["applications", "dream100", "leads", "noida-agencies"] as const;
+export const LIST_IDS = ["applications", "dream100", "leads", "noida-agencies", "job-boards"] as const;
 export type ListId = (typeof LIST_IDS)[number];
 export const DEFAULT_LIST_ID: ListId = "applications";
 
@@ -11,6 +11,7 @@ export const LIST_DEFINITIONS: Record<ListId, { name: string; targetCount?: numb
   dream100: { name: "Dream 100", targetCount: 100 },
   leads: { name: "Leads" },
   "noida-agencies": { name: "Digital marketing agencies in Noida" },
+  "job-boards": { name: "Job boards" },
 };
 
 export function isListId(value: unknown): value is ListId {
