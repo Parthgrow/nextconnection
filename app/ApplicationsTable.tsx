@@ -11,6 +11,8 @@ import {
   type ListId,
 } from "@/lib/contact";
 import { computeStats } from "@/lib/stats";
+import ContactList from "./ContactList";
+import ContactSheet from "./ContactSheet";
 import StatsPanel from "./StatsPanel";
 
 type Column = {
@@ -21,6 +23,7 @@ type Column = {
 };
 
 type View = ListId | "all";
+type Layout = "table" | "list";
 
 const COLUMNS: Column[] = [
   { key: "company", label: "Company", type: "text" },
@@ -38,6 +41,18 @@ const COLUMNS: Column[] = [
 // Legacy localStorage keys — read once on first load to migrate existing data into KV.
 const STORAGE_KEY = "nextconnection.applications";
 const DEADLINE_STORAGE_KEY = "nextconnection.dream100Deadline";
+
+// Per-device view choice. Without one, phones get the list and wider screens the table.
+const LAYOUT_STORAGE_KEY = "nextconnection.layout";
+const PHONE_QUERY = "(max-width: 640px)";
+
+function initialLayout(): Layout {
+  try {
+    const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
+    if (saved === "table" || saved === "list") return saved;
+  } catch {}
+  return window.matchMedia(PHONE_QUERY).matches ? "list" : "table";
+}
 
 function emptyRow(listId: ListId): Contact {
   return {
@@ -103,6 +118,10 @@ export default function ApplicationsTable() {
   const [view, setView] = useState<View>(DEFAULT_LIST_ID);
   const [activeCell, setActiveCell] = useState<{ row: number; col: number } | null>(null);
   const [editing, setEditing] = useState(false);
+  // Unknown until the data has loaded (it depends on the screen), so the
+  // first render matches the server's "Loading…".
+  const [layout, setLayout] = useState<Layout | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const cellRefs = useRef<(HTMLElement | null)[][]>([]);
 
   const rowsRef = useRef<Contact[]>([]);
@@ -174,6 +193,7 @@ export default function ApplicationsTable() {
       const res = await fetch("/api/contacts");
       const data = (await res.json()) as { contacts: Contact[]; lists: List[] };
       if (cancelled) return;
+      setLayout(initialLayout());
       const dreamDeadline = data.lists.find((l) => l.id === "dream100")?.deadline ?? "";
       setLists(data.lists);
 
@@ -234,6 +254,16 @@ export default function ApplicationsTable() {
     setView(next);
     setActiveCell(null);
     setEditing(false);
+    setSelectedId(null);
+  }
+
+  function switchLayout(next: Layout) {
+    setLayout(next);
+    setActiveCell(null);
+    setEditing(false);
+    try {
+      localStorage.setItem(LAYOUT_STORAGE_KEY, next);
+    } catch {}
   }
 
   function setField(id: string, key: keyof Contact, value: string) {
@@ -254,8 +284,12 @@ export default function ApplicationsTable() {
     if (isFull(listId)) return;
     const row = emptyRow(listId);
     setRows((prev) => [...prev, row]);
-    setActiveCell({ row: visibleRows.length, col: 0 });
-    setEditing(true);
+    if (layout === "list") {
+      setSelectedId(row.id);
+    } else {
+      setActiveCell({ row: visibleRows.length, col: 0 });
+      setEditing(true);
+    }
     markDirty(row.id, "new");
     scheduleContactSave(row.id);
   }
@@ -263,6 +297,7 @@ export default function ApplicationsTable() {
   function deleteRow(id: string) {
     cancelContactSave(id);
     setRows((prev) => prev.filter((r) => r.id !== id));
+    setSelectedId((current) => (current === id ? null : current));
     setActiveCell(null);
     setEditing(false);
     fetch(`/api/contacts/${id}`, { method: "DELETE" });
@@ -346,6 +381,7 @@ export default function ApplicationsTable() {
   }
 
   const expired = deadline !== "" && daysUntil(deadline) < 0;
+  const selected = selectedId ? rows.find((r) => r.id === selectedId) : undefined;
 
   return (
     <div className="flex flex-col gap-4 w-full">
@@ -386,13 +422,38 @@ export default function ApplicationsTable() {
             />
           </div>
         )}
+
+        {layout && (
+          <div
+            className="ml-auto inline-flex rounded-md border border-zinc-300 p-0.5 text-xs dark:border-zinc-700"
+            role="group"
+            aria-label="View"
+          >
+            {(["table", "list"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => switchLayout(option)}
+                aria-pressed={layout === option}
+                className={`rounded px-2.5 py-1 capitalize ${
+                  layout === option ? "bg-zinc-200 font-medium dark:bg-zinc-700" : "text-zinc-500"
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {!loaded ? (
+      {!loaded || !layout ? (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
       ) : (
         <>
       <StatsPanel stats={stats} />
+      {layout === "list" ? (
+        <ContactList rows={visibleRows} showList={view === "all"} onOpen={setSelectedId} />
+      ) : (
       <table className="border-collapse w-full text-sm">
         <thead>
           <tr>
@@ -505,6 +566,7 @@ export default function ApplicationsTable() {
           ))}
         </tbody>
       </table>
+      )}
 
       <button
         onClick={() => addRow(addTarget)}
@@ -514,6 +576,17 @@ export default function ApplicationsTable() {
         + Add to {LIST_DEFINITIONS[addTarget].name}
       </button>
         </>
+      )}
+
+      {selected && (
+        <ContactSheet
+          contact={selected}
+          isFull={isFull}
+          onChange={(key, value) => setField(selected.id, key, value)}
+          onMove={(listId) => moveToList(selected.id, listId)}
+          onDelete={() => deleteRow(selected.id)}
+          onClose={() => setSelectedId(null)}
+        />
       )}
     </div>
   );
